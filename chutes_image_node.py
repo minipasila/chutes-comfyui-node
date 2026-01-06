@@ -5,7 +5,7 @@ import io
 from PIL import Image
 
 class ChutesImageGeneration:
-    """Generate images using Chutes.ai Image API."""
+    """Generate images using Chutes AI Image API."""
 
     @classmethod
     def INPUT_TYPES(cls):

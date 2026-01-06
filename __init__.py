@@ -1,6 +1,6 @@
 """
-Chutes.ai ComfyUI Custom Nodes
-Generate images using Chutes.ai Image models via API.
+Chutes AI ComfyUI Custom Nodes
+Generate images using Chutes AI Image models via API.
 """
 
 from .chutes_image_node import ChutesImageGeneration

@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-chutes-nodes"
 version = "1.0.0"
-description = "ComfyUI custom nodes for Chutes.ai video generation API"
+description = "ComfyUI custom nodes for Chutes AI image generation API"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
@@ -12,6 +12,6 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USERNAME/chutes-comfyui-node"
-Issues = "https://github.com/YOUR_USERNAME/chutes-comfyui-node/issues"
+Homepage = "https://github.com/minipasila/chutes-comfyui-node"
+Issues = "https://github.com/minipaila/chutes-comfyui-node/issues"
 

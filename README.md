@@ -1,6 +1,6 @@
-# Chutes.ai ComfyUI Nodes
+# Chutes AI ComfyUI Nodes
 
-Custom nodes for ComfyUI that integrate with [Chutes.ai](https://chutes.ai) image generation API.
+Custom nodes for ComfyUI that integrate with [Chutes AI](https://chutes.ai) image generation API.
 
 ## Nodes
 
@@ -34,6 +34,6 @@ Generate images using hosted models (NovaFurryXL, iLustMix, Qwen-Image-2512) via
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/YOUR_USERNAME/chutes-comfyui-node.git
+git clone https://github.com/minipasila/chutes-comfyui-node.git
 cd chutes-comfyui-node
 pip install -r requirements.txt
