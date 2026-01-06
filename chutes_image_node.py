@@ -3,11 +3,10 @@ import requests
 import torch
 import io
 import json
-import time
 from PIL import Image
 
 class ChutesImageGeneration:
-    """Generate images using Chutes AI Image API."""
+    """Generate images using Chutes.ai Image API."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -22,9 +21,8 @@ class ChutesImageGeneration:
             },
             "optional": {
                 "negative_prompt": ("STRING", {"multiline": True, "default": "blur, distortion, low quality"}),
-                "num_inference_steps": ("INT", {"default": 30, "min": 1, "max": 100, "step": 1}),
-                "guidance_scale": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 20.0, "step": 0.1}),
-                "shift": ("FLOAT", {"default": 3.0, "min": 1.0, "max": 10.0, "step": 0.1, "tooltip": "Shift parameter for Flux-based models"}),
+                "num_inference_steps": ("INT", {"default": 30, "min": 1, "max": 75, "step": 1}),
+                "guidance_scale": ("FLOAT", {"default": 7.5, "min": 0.0, "max": 20.0, "step": 0.1}),
             }
         }
 
@@ -43,63 +41,77 @@ class ChutesImageGeneration:
         seed,
         negative_prompt="",
         num_inference_steps=30,
-        guidance_scale=5.0,
-        shift=3.0,
+        guidance_scale=7.5,
     ):
         url = "https://image.chutes.ai/generate"
 
-        # Chutes API Schema Requirements:
-        # Seed must be UInt32 (max 4294967295). ComfyUI provides Int64.
-        # We allow -1 for random, otherwise modulo the seed to fit 32-bit.
-        
+        # 1. Handle Seed (ComfyUI int64 -> API uint32)
         final_seed = None
         if seed != -1:
-            # Ensure seed fits in 32-bit integer (0 to 4,294,967,295)
             final_seed = seed % 4294967295
 
+        # 2. Base Payload
         payload = {
             "model": model,
             "prompt": prompt,
             "width": width,
             "height": height,
-            "num_inference_steps": num_inference_steps,
-            "guidance_scale": guidance_scale,
-            "shift": shift,
         }
 
-        # Only add seed if explicitly set
+        # 3. Model-Specific Parameter Handling
+        if model == "Qwen-Image-2512":
+            # Qwen uses 'true_cfg_scale' instead of 'guidance_scale'
+            # Qwen Max Steps = 75
+            payload["true_cfg_scale"] = guidance_scale
+            payload["num_inference_steps"] = min(num_inference_steps, 75)
+            # Qwen usually handles negative_prompt, but some versions might ignore it. Included safely.
+            if negative_prompt and negative_prompt.strip():
+                payload["negative_prompt"] = negative_prompt
+        
+        else:
+            # NovaFurryXL and iLustMix (SDXL/Flux based)
+            # Schema: guidance_scale (1-20), num_inference_steps (1-50)
+            
+            # Enforce strict step limit (Schema max is 50)
+            safe_steps = min(num_inference_steps, 50)
+            
+            payload["guidance_scale"] = guidance_scale
+            payload["num_inference_steps"] = safe_steps
+            
+            if negative_prompt and negative_prompt.strip():
+                payload["negative_prompt"] = negative_prompt
+
+        # Add seed if valid
         if final_seed is not None:
             payload["seed"] = final_seed
-
-        # Only add negative prompt if provided (some models might strictly reject it if empty)
-        if negative_prompt and negative_prompt.strip():
-            payload["negative_prompt"] = negative_prompt
 
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
 
-        print(f"Sending request to Chutes.ai Image API ({model})...")
-        print(f"Params: {width}x{height}, Steps: {num_inference_steps}, CFG: {guidance_scale}, Seed: {final_seed}")
-        
-        response = None
+        print(f"Sending request to Chutes.ai ({model})...")
+        print(f"Payload keys: {list(payload.keys())}") 
+
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=180)
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            # Handle specific API errors
             error_msg = f"HTTP Error {response.status_code}"
+            
+            # Attempt to parse detailed JSON error
+            try:
+                error_json = response.json()
+                detail = error_json.get('detail', str(error_json))
+            except:
+                detail = response.text
+
             if response.status_code == 503:
-                error_msg = f"Model '{model}' is currently unavailable (No active miners). Please try again later or choose a different model."
+                error_msg = f"Service Unavailable for '{model}': {detail}. Try again later."
             elif response.status_code == 400:
-                try:
-                    detail = response.json().get('detail', response.text)
-                    error_msg = f"API Validation Error: {detail} (Check image dimensions or parameter limits)"
-                except:
-                    error_msg = f"Bad Request: {response.text}"
+                error_msg = f"Validation Error (400): {detail}"
             else:
-                 error_msg = f"Request failed: {response.text}"
+                error_msg = f"API Error {response.status_code}: {detail}"
             
             raise Exception(error_msg) from e
         except requests.exceptions.RequestException as e:
@@ -113,11 +125,10 @@ class ChutesImageGeneration:
             try:
                 img = Image.open(io.BytesIO(response.content))
             except Exception as e:
-                 raise Exception(f"Failed to decode image. Server returned: {response.text[:200]}...")
+                 raise Exception(f"Failed to decode image. Bytes received: {len(response.content)}. Error: {e}")
         else:
              raise Exception(f"Unexpected response type: {content_type}. Body: {response.text}")
 
-        # Convert PIL to Tensor (Batch, Height, Width, Channels)
         img = img.convert("RGB")
         img_np = np.array(img).astype(np.float32) / 255.0
         img_tensor = torch.from_numpy(img_np).unsqueeze(0)
