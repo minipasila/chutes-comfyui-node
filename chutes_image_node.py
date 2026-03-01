@@ -64,38 +64,6 @@ def fetch_available_chutes(api_key):
         print(f"Unexpected error fetching chutes: {e}")
         return None
 
-def safe_to_string(value):
-    """
-    Safely convert a value to a string for keyword matching.
-    
-    Args:
-        value: Any value from API response (str, dict, list, etc.)
-        
-    Returns:
-        String representation of the value, or empty string if None
-    """
-    if value is None:
-        return ""
-    
-    if isinstance(value, str):
-        return value
-    
-    if isinstance(value, dict):
-        # Try to extract common fields from dict
-        # Priority: name > title > description > url > string representation
-        for key in ['name', 'title', 'description', 'url']:
-            if key in value and isinstance(value[key], str):
-                return value[key]
-        # Fallback to string representation
-        return str(value)
-    
-    if isinstance(value, (list, tuple)):
-        # Join list items with spaces
-        return " ".join(str(item) for item in value)
-    
-    # For any other type, convert to string
-    return str(value)
-
 def filter_image_generation_chutes(chutes):
     """
     Filter chutes to identify image generation models.
@@ -112,12 +80,12 @@ def filter_image_generation_chutes(chutes):
     image_models = []
     
     for chute in chutes:
-        # Extract relevant fields with safe conversion
-        chute_name = safe_to_string(chute.get('name', ''))
-        template = safe_to_string(chute.get('template', ''))
-        image = safe_to_string(chute.get('image', ''))
-        tagline = safe_to_string(chute.get('tagline', ''))
-        tool_description = safe_to_string(chute.get('tool_description', ''))
+        # Extract relevant fields
+        chute_name = chute.get('name', '')
+        template = chute.get('template', '')
+        image = chute.get('image', '')
+        tagline = chute.get('tagline', '')
+        tool_description = chute.get('tool_description', '')
         
         # Keywords that indicate image generation
         image_keywords = [
