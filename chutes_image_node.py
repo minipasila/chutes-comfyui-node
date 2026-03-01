@@ -3,17 +3,187 @@ import requests
 import torch
 import io
 import json
+import os
+import time
 from PIL import Image
+
+# Module-level cache for fetched models
+_MODELS_CACHE = {
+    'models': None,
+    'timestamp': 0,
+    'cache_duration': 300,  # 5 minutes
+}
+
+# Hardcoded fallback models
+FALLBACK_MODELS = ["NovaFurryXL", "iLustMix", "Qwen-Image-2512"]
+
+def fetch_available_chutes(api_key):
+    """
+    Fetch available chutes from Chutes API.
+    
+    Args:
+        api_key: Chutes API key for authentication
+        
+    Returns:
+        List of chute dictionaries or None on error
+    """
+    url = "https://api.chutes.ai/chutes/"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    params = {
+        "include_public": True,
+        "limit": 100
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Handle different response formats
+        if isinstance(data, dict) and 'items' in data:
+            return data['items']
+        elif isinstance(data, list):
+            return data
+        else:
+            print(f"Unexpected response format from Chutes API: {type(data)}")
+            return None
+            
+    except requests.exceptions.HTTPError as e:
+        print(f"HTTP error fetching chutes: {e}")
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"Network error fetching chutes: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error fetching chutes: {e}")
+        return None
+
+def filter_image_generation_chutes(chutes):
+    """
+    Filter chutes to identify image generation models.
+    
+    Args:
+        chutes: List of chute dictionaries
+        
+    Returns:
+        List of model names (strings)
+    """
+    if not chutes:
+        return []
+    
+    image_models = []
+    
+    for chute in chutes:
+        # Extract relevant fields
+        chute_name = chute.get('name', '')
+        template = chute.get('template', '')
+        image = chute.get('image', '')
+        tagline = chute.get('tagline', '')
+        tool_description = chute.get('tool_description', '')
+        
+        # Keywords that indicate image generation
+        image_keywords = [
+            'diffusion', 'stable', 'flux', 'image', 'generate', 'sd', 
+            'midjourney', 'dall', 'imagen', 'novafurry', 'ilustmix', 'qwen'
+        ]
+        
+        # Check for image generation indicators
+        is_image_model = False
+        
+        # Check template
+        if template and any(keyword in template.lower() for keyword in image_keywords):
+            is_image_model = True
+        
+        # Check image field
+        if image and any(keyword in image.lower() for keyword in image_keywords):
+            is_image_model = True
+        
+        # Check name
+        if chute_name and any(keyword in chute_name.lower() for keyword in image_keywords):
+            is_image_model = True
+        
+        # Check tagline and description
+        text_content = f"{tagline} {tool_description}".lower()
+        if text_content and any(keyword in text_content for keyword in image_keywords):
+            is_image_model = True
+        
+        # If identified as image model, add to list
+        if is_image_model and chute_name:
+            image_models.append(chute_name)
+    
+    return image_models
+
+def get_cached_models(api_key):
+    """
+    Get cached models or fetch if cache is expired.
+    
+    Args:
+        api_key: Chutes API key for authentication
+        
+    Returns:
+        List of model names
+    """
+    current_time = time.time()
+    
+    # Check if we have valid cached models
+    if (_MODELS_CACHE['models'] is not None and 
+        current_time - _MODELS_CACHE['timestamp'] < _MODELS_CACHE['cache_duration']):
+        return _MODELS_CACHE['models']
+    
+    # Try to fetch fresh models
+    if api_key and api_key.strip():
+        chutes = fetch_available_chutes(api_key)
+        if chutes:
+            image_models = filter_image_generation_chutes(chutes)
+            
+            if image_models:
+                # Update cache
+                _MODELS_CACHE['models'] = image_models
+                _MODELS_CACHE['timestamp'] = current_time
+                print(f"Successfully fetched {len(image_models)} image generation models from Chutes API")
+                return image_models
+            else:
+                print("No image generation models found in fetched chutes, using fallback")
+        else:
+            print("Failed to fetch chutes from API, using fallback models")
+    else:
+        print("No API key provided, using fallback models")
+    
+    # Return fallback models if fetching failed
+    _MODELS_CACHE['models'] = FALLBACK_MODELS
+    _MODELS_CACHE['timestamp'] = current_time
+    return FALLBACK_MODELS
+
+def get_available_models():
+    """
+    Get available models, trying environment variable first.
+    
+    Returns:
+        List of model names
+    """
+    # Try to get API key from environment variable
+    api_key = os.environ.get('CHUTES_API_KEY', '')
+    return get_cached_models(api_key)
 
 class ChutesImageGeneration:
     """Generate images using Chutes.ai Image API."""
 
     @classmethod
     def INPUT_TYPES(cls):
+        # Get available models (dynamic or fallback)
+        models = get_available_models()
+        default_model = models[0] if models else "NovaFurryXL"
+        
         return {
             "required": {
                 "api_key": ("STRING", {"multiline": False, "default": ""}),
-                "model": (["NovaFurryXL", "iLustMix", "Qwen-Image-2512"], {"default": "NovaFurryXL"}),
+                "model": (models, {"default": default_model}),
                 "prompt": ("STRING", {"multiline": True, "default": "A beautiful sunset over mountains"}),
                 "width": ("INT", {"default": 1024, "min": 256, "max": 2048, "step": 64}),
                 "height": ("INT", {"default": 1024, "min": 256, "max": 2048, "step": 64}),
