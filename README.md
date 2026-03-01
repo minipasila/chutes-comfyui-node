@@ -12,11 +12,18 @@ Generate images using hosted models (NovaFurryXL, iLustMix, Qwen-Image-2512) via
 | Input | Type | Description |
 |-------|------|-------------|
 | `api_key` | STRING | Your Chutes.ai API key |
-| `model` | COMBO | Select the model (e.g., NovaFurryXL) |
+| `model` | STRING | Model name (e.g., NovaFurryXL, iLustMix, Qwen-Image-2512, or custom model) |
 | `prompt` | STRING | Description of the image to generate |
 | `width` | INT | Image width (576-2048) |
 | `height` | INT | Image height (576-2048) |
 | `seed` | INT | Generation seed (-1 = random) |
+
+**Note:** You can specify any model name supported by Chutes.ai. Known models include:
+- NovaFurryXL (standard SDXL parameters)
+- iLustMix (standard SDXL parameters)
+- Qwen-Image-2512 (uses true_cfg_scale, max 75 steps)
+
+Custom models will use standard parameters (guidance_scale, max 50 steps).
 
 **Optional Inputs:**
 | Input | Type | Default | Description |

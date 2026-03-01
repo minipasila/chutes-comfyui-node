@@ -13,7 +13,7 @@ class ChutesImageGeneration:
         return {
             "required": {
                 "api_key": ("STRING", {"multiline": False, "default": ""}),
-                "model": (["NovaFurryXL", "iLustMix", "Qwen-Image-2512"], {"default": "NovaFurryXL"}),
+                "model": ("STRING", {"multiline": False, "default": "NovaFurryXL"}),
                 "prompt": ("STRING", {"multiline": True, "default": "A beautiful sunset over mountains"}),
                 "width": ("INT", {"default": 1024, "min": 256, "max": 2048, "step": 64}),
                 "height": ("INT", {"default": 1024, "min": 256, "max": 2048, "step": 64}),
